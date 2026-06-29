@@ -1184,7 +1184,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 // ===== お知らせ・予定 =====
 const GAS_DASH = 'https://script.google.com/macros/s/AKfycbzPPPNnoMbAA00L0dtOPT3yKUV6bxSiz8De7fSIBzHb4kI7I3zQP4oKGhl36A0bjY88cA/exec';
-const CAL_ID_GAKUEN = '1c546b2b9f00fef1ff424b789502da5a30b800cd1c4412feb8cf750ac76db4a3@group.calendar.google.com';
+const CAL_ID = '1c546b2b9f00fef1ff424b789502da5a30b800cd1c4412feb8cf750ac76db4a3@group.calendar.google.com';
 
 function loadNewsForIndex(){
   fetch(GAS_DASH + '?action=getNews', { method: 'GET' })
@@ -1245,7 +1245,7 @@ function submitCalAdd(){
   const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
     '&text=' + encodeURIComponent(title) +
     '&dates=' + startStr + '/' + endStr +
-    '&cid=' + encodeURIComponent(CAL_ID_GAKUEN);
+    '&cid=' + encodeURIComponent(CAL_ID);
   window.open(url, '_blank');
   document.getElementById('idx-cal-add-form').style.display = 'none';
 }
