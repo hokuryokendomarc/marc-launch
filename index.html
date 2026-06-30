@@ -1291,21 +1291,26 @@ function copyEventToForm(title, timeStart, timeEnd) {
 
 function deleteCalEvent(eventId, title, dateKey) {
   if (!confirm('「' + title + '」を削除しますか？\nこの操作は取り消せません。')) return;
-  fetch(GAS_DASH, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ _token: WRITE_TOKEN, action: 'deleteEvent', eventId: eventId })
+  var params = new URLSearchParams({ action: 'deleteEvent', eventId: eventId });
+  var timer = setTimeout(function(){
+    showNavToast('⚠ 削除がタイムアウトしました。Googleカレンダーを確認してから再試行してください');
+  }, 15000);
+  fetch(GAS_DASH + '?' + params.toString(), { method: 'GET' })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    clearTimeout(timer);
+    if(data.status === 'ok'){
+      var key = currentCalYear + '-' + currentCalMonth;
+      delete calCache[key];
+      showNavToast('✓ 予定を削除しました');
+      loadMonthEvents(currentCalYear, currentCalMonth);
+    } else {
+      showNavToast('⚠ 削除に失敗しました：' + (data.message||'不明なエラー'));
+    }
   })
-  .then(function() {
-    // キャッシュをクリアして再取得
-    var key = currentCalYear + '-' + currentCalMonth;
-    delete calCache[key];
-    showNavToast('✓ 予定を削除しました');
-    loadMonthEvents(currentCalYear, currentCalMonth);
-  })
-  .catch(function() {
-    showNavToast('⚠ 削除に失敗しました。通信環境を確認してください');
+  .catch(function(){
+    clearTimeout(timer);
+    showNavToast('⚠ 通信エラーが発生しました。再度お試しください');
   });
 }
 
@@ -1559,24 +1564,41 @@ function submitCalAdd(){
   const end   = (document.getElementById('idx-cal-end')||{}).value   || '18:00';
   if(!title || !title.trim()){ showNavToast('⚠ タイトルを入力してください'); return; }
   if(!date){ showNavToast('⚠ 日付を入力してください'); return; }
-  const btn = document.querySelector('#idx-cal-add-form button');
+  var btn = document.querySelector('#idx-cal-add-form button');
   if(btn){ btn.disabled = true; btn.textContent = '⏳ 登録中…'; }
-  fetch(GAS_DASH, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ _token: WRITE_TOKEN, action: 'addEvent', title: title.trim(), date: date, time: start, timeEnd: end })
+  // ★no-cors POSTだとGASからのレスポンスが受け取れずボタンが永遠に「登録中…」のまま
+  //   固まる問題があったため、GETリクエスト（クエリパラメータ）で送る方式に変更。
+  //   GETは同じGASのdoGetで処理できるのでCORS問題が発生しない。
+  var params = new URLSearchParams({
+    action: 'addEvent',
+    title: title.trim(),
+    date: date,
+    time: start,
+    timeEnd: end
+  });
+  // タイムアウト（15秒）を設定
+  var timer = setTimeout(function(){
+    showNavToast('⚠ 登録がタイムアウトしました。Googleカレンダーを確認してから再試行してください');
+    if(btn){ btn.disabled = false; btn.textContent = '追加する'; }
+  }, 15000);
+  fetch(GAS_DASH + '?' + params.toString(), { method: 'GET' })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    clearTimeout(timer);
+    if(data.status === 'ok'){
+      document.getElementById('idx-cal-add-form').style.display = 'none';
+      document.getElementById('idx-cal-title').value = '';
+      var key = currentCalYear + '-' + currentCalMonth;
+      delete calCache[key];
+      showNavToast('✓ 予定を追加しました');
+      setTimeout(function(){ loadMonthEvents(currentCalYear, currentCalMonth); }, 1500);
+    } else {
+      showNavToast('⚠ 登録に失敗しました：' + (data.message||'不明なエラー'));
+    }
   })
-  .then(function() {
-    document.getElementById('idx-cal-add-form').style.display = 'none';
-    document.getElementById('idx-cal-title').value = '';
-    // キャッシュをクリアして再取得
-    var key = currentCalYear + '-' + currentCalMonth;
-    delete calCache[key];
-    showNavToast('✓ 予定を追加しました');
-    setTimeout(function(){ loadMonthEvents(currentCalYear, currentCalMonth); }, 1500);
-  })
-  .catch(function(){
-    showNavToast('⚠ 追加に失敗しました。通信環境を確認してください');
+  .catch(function(err){
+    clearTimeout(timer);
+    showNavToast('⚠ 通信エラーが発生しました。再度お試しください');
   })
   .finally(function(){
     if(btn){ btn.disabled = false; btn.textContent = '追加する'; }
