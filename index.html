@@ -1468,21 +1468,18 @@ function printCalendar() {
   var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">';
   html += '<title>' + year + '年' + (month+1) + '月 MARCカレンダー</title>';
   html += '<style>';
-  html += '@page{size:A4 portrait;margin:12mm;}';
+  html += '@page{size:A4 landscape;margin:10mm;}';
   html += 'body{font-family:"Noto Sans JP",sans-serif;font-size:11px;color:#333;margin:0;}';
-  html += 'h1{font-size:15px;color:#1B3A5C;margin:0 0 10px;text-align:center;}';
-  html += 'table{width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;}';
+  html += 'h1{font-size:15px;color:#1B3A5C;margin:0 0 8px;text-align:center;}';
+  html += 'table{width:100%;border-collapse:collapse;table-layout:fixed;}';
   html += 'col{width:14.28%;}';
   html += 'th{background:#1B3A5C;color:#fff;font-size:11px;padding:4px;text-align:center;border:1px solid #ccc;}';
-  html += 'td{border:1px solid #ccc;height:70px;vertical-align:top;padding:3px;font-size:10px;word-break:break-all;overflow:hidden;}';
-  html += '.day-num{font-weight:700;font-size:11px;text-align:right;margin-bottom:2px;}';
-  html += '.ev{background:#E6F5F0;color:#0F6E56;border-radius:3px;padding:1px 3px;margin-bottom:1px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}';
+  html += 'td{border:1px solid #ccc;height:90px;vertical-align:top;padding:3px;font-size:10px;word-break:break-all;overflow:hidden;}';
+  html += '.day-num{font-weight:700;font-size:12px;text-align:right;margin-bottom:2px;}';
+  html += '.ev{background:#E6F5F0;color:#0F6E56;border-radius:3px;padding:1px 4px;margin-bottom:2px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}';
   html += '.today{background:#1B3A5C !important;}';
   html += '.today .day-num{color:#fff;}';
   html += '.sun .day-num{color:#c0392b;} .sat .day-num{color:#2471a3;}';
-  html += '.list{page-break-inside:avoid;}';
-  html += '.list-item{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #eee;align-items:flex-start;}';
-  html += '.list-date{background:#E6F5F0;color:#0F6E56;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;white-space:nowrap;}';
   html += '</style></head><body>';
   html += '<h1>' + year + '年' + (month+1) + '月 MARCカレンダー</h1>';
 
@@ -1508,15 +1505,6 @@ function printCalendar() {
   var lastDow = (startDow + lastDay.getDate() - 1) % 7;
   for (var e = lastDow+1; e < 7; e++) html += '<td style="background:#fafafa;"></td>';
   html += '</tr></tbody></table>';
-
-  if (events.length > 0) {
-    html += '<div class="list"><div style="font-size:12px;font-weight:700;color:#1B3A5C;margin-bottom:6px;">予定一覧</div>';
-    var sorted = events.slice().sort(function(a,b){ return (a.dateKey||a.rawDate||'')>(b.dateKey||b.rawDate||'')?1:-1; });
-    sorted.forEach(function(ev){
-      html += '<div class="list-item"><div class="list-date">'+(ev.date||'')+'</div><div>'+(ev.title||'')+(ev.time?' <span style="color:#888;font-size:10px;">'+ev.time+'</span>':'')+'</div></div>';
-    });
-    html += '</div>';
-  }
   html += '</body></html>';
 
   var win = window.open('', '_blank', 'width=800,height=1000');
