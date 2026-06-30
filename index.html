@@ -1365,7 +1365,7 @@ function renderMonthList(year, month, events, grid) {
     if (cp) { copyEventToForm(cp.dataset.title, cp.dataset.time, cp.dataset.timeend); return; }
     var del = e.target.closest('[data-delete]');
     if (del) { deleteCalEvent(del.dataset.evid, del.dataset.title, del.dataset.datekey); return; }
-  }, { once: true });
+  });
 }
 
 function renderMonthGridDesktop(year, month, events, grid) {
@@ -1439,7 +1439,7 @@ function renderMonthGridDesktop(year, month, events, grid) {
     if (cp) { copyEventToForm(cp.dataset.title, cp.dataset.time, cp.dataset.timeend); return; }
     var del = e.target.closest('[data-delete]');
     if (del) { deleteCalEvent(del.dataset.evid, del.dataset.title, del.dataset.datekey); }
-  }, { once: true });
+  });
 }
 
 function printCalendar() {
@@ -1468,14 +1468,15 @@ function printCalendar() {
   var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">';
   html += '<title>' + year + '年' + (month+1) + '月 MARCカレンダー</title>';
   html += '<style>';
-  html += '@page{size:A4 portrait;margin:15mm;}';
+  html += '@page{size:A4 portrait;margin:12mm;}';
   html += 'body{font-family:"Noto Sans JP",sans-serif;font-size:11px;color:#333;margin:0;}';
-  html += 'h1{font-size:16px;color:#1B3A5C;margin:0 0 12px;text-align:center;}';
-  html += 'table{width:100%;border-collapse:collapse;margin-bottom:16px;}';
+  html += 'h1{font-size:15px;color:#1B3A5C;margin:0 0 10px;text-align:center;}';
+  html += 'table{width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;}';
+  html += 'col{width:14.28%;}';
   html += 'th{background:#1B3A5C;color:#fff;font-size:11px;padding:4px;text-align:center;border:1px solid #ccc;}';
-  html += 'td{border:1px solid #ccc;height:72px;vertical-align:top;padding:3px;font-size:10px;}';
+  html += 'td{border:1px solid #ccc;height:70px;vertical-align:top;padding:3px;font-size:10px;word-break:break-all;overflow:hidden;}';
   html += '.day-num{font-weight:700;font-size:11px;text-align:right;margin-bottom:2px;}';
-  html += '.ev{background:#E6F5F0;color:#0F6E56;border-radius:3px;padding:1px 3px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px;}';
+  html += '.ev{background:#E6F5F0;color:#0F6E56;border-radius:3px;padding:1px 3px;margin-bottom:1px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}';
   html += '.today{background:#1B3A5C !important;}';
   html += '.today .day-num{color:#fff;}';
   html += '.sun .day-num{color:#c0392b;} .sat .day-num{color:#2471a3;}';
@@ -1485,7 +1486,7 @@ function printCalendar() {
   html += '</style></head><body>';
   html += '<h1>' + year + '年' + (month+1) + '月 MARCカレンダー</h1>';
 
-  html += '<table><thead><tr>';
+  html += '<table><colgroup><col><col><col><col><col><col><col></colgroup><thead><tr>';
   ['日','月','火','水','木','金','土'].forEach(function(d,i){
     var c = i===0?'#c0392b':i===6?'#2471a3':'#fff';
     html += '<th style="color:'+c+'">'+d+'</th>';
