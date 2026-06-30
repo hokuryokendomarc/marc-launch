@@ -1270,6 +1270,25 @@ function loadMonthEvents(year, month) {
   });
 }
 
+function copyEventToForm(title, timeStart, timeEnd) {
+  // タイトルはencodeURIComponent経由で渡される場合があるのでデコードする
+  try { title = decodeURIComponent(title); } catch(e) {}
+  var form = document.getElementById('idx-cal-add-form');
+  if (!form) return;
+  form.style.display = 'block';
+  var titleEl = document.getElementById('idx-cal-title');
+  var startEl = document.getElementById('idx-cal-start');
+  var endEl   = document.getElementById('idx-cal-end');
+  var dateEl  = document.getElementById('idx-cal-date');
+  if (titleEl) titleEl.value = title;
+  if (startEl && timeStart) startEl.value = timeStart;
+  if (endEl   && timeEnd)   endEl.value   = timeEnd;
+  if (dateEl)  dateEl.value = '';
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (dateEl) setTimeout(function(){ dateEl.focus(); }, 300);
+  showNavToast('📋 タイトルと時刻をコピーしました。日付を選んで追加してください');
+}
+
 function deleteCalEvent(eventId, title, dateKey) {
   if (!confirm('「' + title + '」を削除しますか？\nこの操作は取り消せません。')) return;
   fetch(GAS_DASH, {
@@ -1293,96 +1312,133 @@ function deleteCalEvent(eventId, title, dateKey) {
 function renderMonthGrid(year, month, events) {
   const grid = document.getElementById('idx-cal-grid');
   if (!grid) return;
-  const today = new Date();
-  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  if (window.innerWidth < 600) {
+    renderMonthList(year, month, events, grid);
+  } else {
+    renderMonthGridDesktop(year, month, events, grid);
+  }
+}
 
-  // 月の初日・末日
-  const firstDay = new Date(year, month, 1);
-  const lastDay  = new Date(year, month + 1, 0);
-  const startDow = firstDay.getDay(); // 0=日
-  const DOW = ['日','月','火','水','木','金','土'];
+function renderMonthList(year, month, events, grid) {
+  var today = new Date();
+  var todayStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  var DOW = ['日','月','火','水','木','金','土'];
+  var lastDay = new Date(year, month + 1, 0).getDate();
+  var html = '<div style="display:flex;flex-direction:column;gap:0;">';
+  var hasAny = false;
+  // ★onclick文字列結合は氏名など特殊文字でエラーになるため、
+  //   data属性でデータを持たせてイベント委譲で処理する方式を採用
+  for (var day = 1; day <= lastDay; day++) {
+    var dk = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    var d = new Date(year, month, day);
+    var dow = d.getDay();
+    var dayEvs = events.filter(function(ev){
+      return (ev.dateKey||'') === dk || (ev.date||'') === (month+1)+'/'+day;
+    });
+    if (!dayEvs.length) continue;
+    hasAny = true;
+    var isToday = dk === todayStr;
+    var dayColor = dow===0?'#c0392b':dow===6?'#2471a3':'#333';
+    var dateBg = isToday ? '#1B3A5C' : '#f5f7fa';
+    var dateCol = isToday ? '#fff' : dayColor;
+    html += '<div style="border-bottom:1px solid #eee;padding:8px 0;">';
+    html += '<div style="font-size:11px;font-weight:700;color:'+dateCol+';background:'+dateBg+';display:inline-block;padding:2px 8px;border-radius:5px;margin-bottom:5px;">'+(month+1)+'/'+day+'（'+DOW[dow]+'）</div>';
+    dayEvs.forEach(function(ev, idx){
+      var evId = ev.id || '';
+      var safeTitle = (ev.title||'').replace(/"/g,'&quot;');
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">';
+      html += '<div style="background:#E6F5F0;color:#0F6E56;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap;">'+(ev.time?ev.time:'終日')+(ev.timeEnd?'〜'+ev.timeEnd:'')+'</div>';
+      html += '<div style="font-size:13px;color:#333;flex:1;">'+safeTitle+'</div>';
+      html += '<button data-copy data-title="'+safeTitle+'" data-time="'+(ev.time||'')+'" data-timeend="'+(ev.timeEnd||'')+'" style="background:none;border:1px solid #ddd;color:#555;font-size:12px;cursor:pointer;padding:4px 8px;border-radius:5px;min-width:36px;min-height:36px;">📋</button>';
+      if (evId) html += '<button data-delete data-evid="'+evId+'" data-title="'+safeTitle+'" data-datekey="'+dk+'" style="background:none;border:none;color:#c0392b;font-size:18px;font-weight:700;cursor:pointer;padding:4px 8px;min-width:36px;min-height:36px;">×</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  if (!hasAny) html += '<div style="font-size:13px;color:#888;text-align:center;padding:20px 0;">この月の予定はありません</div>';
+  html += '</div>';
+  grid.innerHTML = html;
+  // イベント委譲で処理
+  grid.addEventListener('click', function handler(e) {
+    var cp = e.target.closest('[data-copy]');
+    if (cp) { copyEventToForm(cp.dataset.title, cp.dataset.time, cp.dataset.timeend); return; }
+    var del = e.target.closest('[data-delete]');
+    if (del) { deleteCalEvent(del.dataset.evid, del.dataset.title, del.dataset.datekey); return; }
+  }, { once: true });
+}
 
-  // イベントをキー日付でマップ化（YYYY-MM-DD→イベント配列）
+function renderMonthGridDesktop(year, month, events, grid) {
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  var DOW = ['日','月','火','水','木','金','土'];
+  var firstDay = new Date(year, month, 1);
+  var lastDay  = new Date(year, month + 1, 0);
+  var startDow = firstDay.getDay();
   var evMap = {};
   events.forEach(function(ev) {
     var dateKey = ev.dateKey || ev.rawDate || '';
     if (!dateKey && ev.date) {
-      // "M/D"形式から YYYY-MM-DD に変換
       var parts = (ev.date||'').split('/');
-      if (parts.length === 2) {
-        dateKey = year + '-' + String(parseInt(parts[0])).padStart(2,'0') + '-' + String(parseInt(parts[1])).padStart(2,'0');
-      }
+      if (parts.length === 2) dateKey = year+'-'+String(parseInt(parts[0])).padStart(2,'0')+'-'+String(parseInt(parts[1])).padStart(2,'0');
     }
     if (!dateKey) return;
     if (!evMap[dateKey]) evMap[dateKey] = [];
     evMap[dateKey].push(ev);
   });
-
-  // ヘッダー（曜日）
-  var html = '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">';
-  html += '<colgroup>';
-  for (var i = 0; i < 7; i++) html += '<col style="width:14.28%">';
+  var html = '<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><colgroup>';
+  for (var i=0;i<7;i++) html += '<col style="width:14.28%">';
   html += '</colgroup><thead><tr>';
-  DOW.forEach(function(d, i) {
-    var c = i===0 ? '#c0392b' : i===6 ? '#2471a3' : '#555';
-    html += '<th style="text-align:center;font-size:11px;font-weight:700;color:'+c+';padding:4px 0;border-bottom:2px solid #e8ede8;">' + d + '</th>';
-  });
+  DOW.forEach(function(d,i){ var c=i===0?'#c0392b':i===6?'#2471a3':'#555'; html+='<th style="text-align:center;font-size:11px;font-weight:700;color:'+c+';padding:4px 0;border-bottom:2px solid #e8ede8;">'+d+'</th>'; });
   html += '</tr></thead><tbody><tr>';
-
-  // 月初前の空白
-  for (var d = 0; d < startDow; d++) {
-    html += '<td style="border:1px solid #f0f0f0;height:60px;vertical-align:top;padding:2px;background:#fafafa;"></td>';
-  }
-
-  // 日付セル
-  for (var day = 1; day <= lastDay.getDate(); day++) {
-    var dow = (startDow + day - 1) % 7;
-    if (dow === 0 && day > 1) html += '</tr><tr>';
-    var dateKey = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
-    var isToday = dateKey === todayStr;
+  for (var d=0;d<startDow;d++) html += '<td style="border:1px solid #f0f0f0;height:60px;vertical-align:top;padding:2px;background:#fafafa;"></td>';
+  for (var day=1;day<=lastDay.getDate();day++) {
+    var dow = (startDow+day-1)%7;
+    if (dow===0 && day>1) html += '</tr><tr>';
+    var dateKey = year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var isToday = dateKey===todayStr;
     var dayEvs = evMap[dateKey] || [];
-    var bgColor = isToday ? '#1B3A5C' : '#fff';
-    var dayColor = isToday ? '#fff' : (dow===0 ? '#c0392b' : dow===6 ? '#2471a3' : '#333');
+    var bgColor = isToday?'#1B3A5C':'#fff';
+    var dayColor = isToday?'#fff':(dow===0?'#c0392b':dow===6?'#2471a3':'#333');
     html += '<td style="border:1px solid #e8ede8;height:60px;vertical-align:top;padding:2px;background:'+bgColor+';">';
-    html += '<div style="font-size:11px;font-weight:700;color:'+dayColor+';margin-bottom:2px;text-align:right;padding-right:2px;">' + day + '</div>';
-    dayEvs.forEach(function(ev) {
-      var evId = ev.id || '';
-      var delBtn = evId ? ' <span onclick="event.stopPropagation();deleteCalEvent(\''+evId.replace(/'/g,"\\'")+"','"+ev.title.replace(/'/g,"\\'")+'\',\''+dk+'\')" style="float:right;cursor:pointer;color:#c0392b;font-weight:700;margin-left:2px;font-size:10px;" title="削除">×</span>' : '';
-      html += '<div style="background:#E6F5F0;color:#0F6E56;border-radius:3px;font-size:9px;padding:1px 3px;margin-bottom:1px;overflow:hidden;" title="'+(ev.title||'')+(ev.time?' '+ev.time:'')+'">';
-      html += delBtn;
-      if (ev.time) html += '<span style="opacity:.8;">' + ev.time + ' </span>';
-      html += (ev.title||'');
-      html += '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:'+dayColor+';margin-bottom:2px;text-align:right;padding-right:2px;">'+day+'</div>';
+    dayEvs.forEach(function(ev){
+      var evId=ev.id||'';
+      var safeTitle2 = (ev.title||'').replace(/"/g,'&quot;');
+      html += '<div style="background:#E6F5F0;color:#0F6E56;border-radius:3px;font-size:9px;padding:1px 3px;margin-bottom:1px;overflow:hidden;display:flex;align-items:center;" title="'+(ev.title||'')+(ev.time?' '+ev.time:'')+'">';
+      if (evId) html += '<span data-delete data-evid="'+evId+'" data-title="'+safeTitle2+'" data-datekey="'+dateKey+'" style="cursor:pointer;color:#c0392b;font-weight:700;flex-shrink:0;margin-right:2px;font-size:10px;">×</span>';
+      if (ev.time) html += '<span style="opacity:.8;">'+ev.time+' </span>';
+      html += safeTitle2+'</div>';
     });
     html += '</td>';
   }
-
-  // 月末後の空白
-  var lastDow = (startDow + lastDay.getDate() - 1) % 7;
-  for (var e = lastDow + 1; e < 7; e++) {
-    html += '<td style="border:1px solid #f0f0f0;height:60px;vertical-align:top;padding:2px;background:#fafafa;"></td>';
-  }
+  var lastDow2=(startDow+lastDay.getDate()-1)%7;
+  for (var e=lastDow2+1;e<7;e++) html += '<td style="border:1px solid #f0f0f0;height:60px;vertical-align:top;padding:2px;background:#fafafa;"></td>';
   html += '</tr></tbody></table>';
-
-  // 予定一覧（月内の全予定をリスト表示）
   if (events.length > 0) {
-    html += '<div style="margin-top:12px;border-top:1px solid #e8ede8;padding-top:10px;">';
-    html += '<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px;">予定一覧</div>';
-    var sorted = events.slice().sort(function(a,b){ return (a.dateKey||a.rawDate||'') > (b.dateKey||b.rawDate||'') ? 1 : -1; });
-    sorted.forEach(function(ev) {
-      var evId = ev.id || '';
+    html += '<div style="margin-top:12px;border-top:1px solid #e8ede8;padding-top:10px;"><div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px;">予定一覧</div>';
+    var sorted = events.slice().sort(function(a,b){return (a.dateKey||a.rawDate||'')>(b.dateKey||b.rawDate||'')?1:-1;});
+    sorted.forEach(function(ev){
+      var evId=ev.id||'';
+      var safeTitle3 = (ev.title||'').replace(/"/g,'&quot;');
       html += '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px solid #f5f5f5;">';
-      html += '<div style="background:'+(ev.today?'#1B3A5C':'#E6F5F0')+';color:'+(ev.today?'#fff':'#0F6E56')+';border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap;min-width:36px;text-align:center;">' + (ev.date||'') + '</div>';
-      html += '<div style="font-size:12px;color:#333;flex:1;">' + (ev.title||'') + (ev.time ? '<span style="color:#888;font-size:11px;"> ' + ev.time + '</span>' : '') + '</div>';
-      if (evId) html += '<button onclick="deleteCalEvent(\''+evId.replace(/'/g,"\\'")+'\',\''+ev.title.replace(/'/g,"\\'")+'\',\''+( ev.dateKey||''  )+'\')" style="background:none;border:none;color:#c0392b;font-size:12px;font-weight:700;cursor:pointer;padding:0 4px;flex-shrink:0;" title="削除">×</button>';
+      html += '<div style="background:'+(ev.today?'#1B3A5C':'#E6F5F0')+';color:'+(ev.today?'#fff':'#0F6E56')+';border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap;min-width:36px;text-align:center;">'+(ev.date||'')+'</div>';
+      html += '<div style="font-size:12px;color:#333;flex:1;">'+safeTitle3+(ev.time?'<span style="color:#888;font-size:11px;"> '+ev.time+'</span>':'')+'</div>';
+      html += '<button data-copy data-title="'+safeTitle3+'" data-time="'+(ev.time||'')+'" data-timeend="'+(ev.timeEnd||'')+'" style="background:none;border:1px solid #ddd;color:#555;font-size:10px;font-weight:700;cursor:pointer;padding:1px 6px;border-radius:5px;flex-shrink:0;">📋</button>';
+      if (evId) html += '<button data-delete data-evid="'+evId+'" data-title="'+safeTitle3+'" data-datekey="'+(ev.dateKey||'')+'" style="background:none;border:none;color:#c0392b;font-size:12px;font-weight:700;cursor:pointer;padding:0 4px;flex-shrink:0;">×</button>';
       html += '</div>';
     });
     html += '</div>';
   } else {
     html += '<div style="font-size:12px;color:#888;text-align:center;padding:8px 0;margin-top:6px;">この月の予定はありません</div>';
   }
-
   grid.innerHTML = html;
+  // グリッド内の削除ボタンはdata属性+委譲で処理
+  grid.addEventListener('click', function handler(e) {
+    var cp = e.target.closest('[data-copy]');
+    if (cp) { copyEventToForm(cp.dataset.title, cp.dataset.time, cp.dataset.timeend); return; }
+    var del = e.target.closest('[data-delete]');
+    if (del) { deleteCalEvent(del.dataset.evid, del.dataset.title, del.dataset.datekey); }
+  }, { once: true });
 }
 
 function printCalendar() {
@@ -1497,21 +1553,34 @@ function openCalAdd(){
 }
 
 function submitCalAdd(){
-  const title = document.getElementById('idx-cal-title')?.value.trim();
-  const date  = document.getElementById('idx-cal-date')?.value;
-  const start = document.getElementById('idx-cal-start')?.value || '17:00';
-  const end   = document.getElementById('idx-cal-end')?.value   || '18:00';
-  if(!title){ alert('タイトルを入力してください'); return; }
-  if(!date){ alert('日付を入力してください'); return; }
-  const d = date.replace(/-/g,'');
-  const startStr = d + 'T' + start.replace(':','') + '00';
-  const endStr   = d + 'T' + end.replace(':','')   + '00';
-  const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
-    '&text=' + encodeURIComponent(title) +
-    '&dates=' + startStr + '/' + endStr +
-    '&cid=' + encodeURIComponent(CAL_ID);
-  window.open(url, '_blank');
-  document.getElementById('idx-cal-add-form').style.display = 'none';
+  const title = (document.getElementById('idx-cal-title')||{}).value;
+  const date  = (document.getElementById('idx-cal-date')||{}).value;
+  const start = (document.getElementById('idx-cal-start')||{}).value || '17:00';
+  const end   = (document.getElementById('idx-cal-end')||{}).value   || '18:00';
+  if(!title || !title.trim()){ showNavToast('⚠ タイトルを入力してください'); return; }
+  if(!date){ showNavToast('⚠ 日付を入力してください'); return; }
+  const btn = document.querySelector('#idx-cal-add-form button');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ 登録中…'; }
+  fetch(GAS_DASH, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ _token: WRITE_TOKEN, action: 'addEvent', title: title.trim(), date: date, time: start, timeEnd: end })
+  })
+  .then(function() {
+    document.getElementById('idx-cal-add-form').style.display = 'none';
+    document.getElementById('idx-cal-title').value = '';
+    // キャッシュをクリアして再取得
+    var key = currentCalYear + '-' + currentCalMonth;
+    delete calCache[key];
+    showNavToast('✓ 予定を追加しました');
+    setTimeout(function(){ loadMonthEvents(currentCalYear, currentCalMonth); }, 1500);
+  })
+  .catch(function(){
+    showNavToast('⚠ 追加に失敗しました。通信環境を確認してください');
+  })
+  .finally(function(){
+    if(btn){ btn.disabled = false; btn.textContent = '追加する'; }
+  });
 }
 </script>
 </body>
